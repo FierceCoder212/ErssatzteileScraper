@@ -1,4 +1,5 @@
 import json
+import math
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import urljoin
@@ -19,6 +20,7 @@ class ErssatzteileScraper:
     def __init__(self, data_file_path: str):
         self.scraper_data = self.get_scraper_data(file_path=data_file_path)
         self.max_workers = 10
+        self.page_size = math.ceil(len(self.scraper_data) / 10)
         self.scraper_name = 'Erssatzteile'
         self.sqlHelper = MSSqlHelper()
         self.images = []
@@ -26,18 +28,25 @@ class ErssatzteileScraper:
 
     def scrape_data(self):
         with ThreadPoolExecutor(max_workers=self.max_workers) as threads:
-            futures = [threads.submit(self.scrape_url, data) for data in self.scraper_data]
-        for future in as_completed(futures):
-            records = self._create_records(future.result())
-            print(f'Sending records to sql {len(records)}')
-            self.sqlHelper.insert_many_records(records=records)
+            futures = [threads.submit(self.scrape_urls, i) for i in range(self.max_workers)]
+        [future.result() for future in as_completed(futures)]
         print('Saving images')
         self._save_json(self.images, 'images.json')
 
+    def scrape_urls(self, index):
+        start_index = index * self.page_size
+        end_index = (index + 1) * self.page_size
+        curr_data = self.scraper_data[start_index:end_index]
+        for index, data in enumerate(curr_data):
+            print(f'Thread-{index + 1} : {index} of {len(curr_data)}')
+            self.current_count += 1
+            catalog = self.scrape_url(scraper_data=data)
+            records = self._create_records(catalog=catalog)
+            print(f'Sending records to SQL: {len(records)}')
+            self.sqlHelper.insert_many_records(records=records)
+
     def scrape_url(self, scraper_data: ScraperDataModel) -> CatalogModel:
-        print(f'Scraping Sections at : {scraper_data.catalog_link}')
-        print(f'Current {self.current_count} out of {len(self.scraper_data)}')
-        self.current_count += 1
+        # print(f'Scraping Section')
         response = requests.get(scraper_data.catalog_link)
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, 'html.parser')
@@ -45,18 +54,18 @@ class ErssatzteileScraper:
             parts_links = [urljoin(scraper_data.catalog_link, container.get('href')) for container in
                            parts_links_container]
             all_section_data = []
-            print(f'Found parts {len(parts_links)}')
+            # print(f'Found parts {len(parts_links)}')
             for section_link in parts_links:
                 if section_data := self.scrape_parts(section_link):
                     all_section_data.append(section_data)
-            print(f'Got sections : {len(all_section_data)}')
+            # print(f'Got sections : {len(all_section_data)}')
             all_section_data = self.translate_sections_name(sections=all_section_data)
             return CatalogModel(sgl_code=scraper_data.sgl_code, sections=all_section_data)
         else:
             print(f'Error at base url : {scraper_data.catalog_link}, Status Code : {response.status_code}')
 
     def scrape_parts(self, url: str) -> SectionModel:
-        print(f'Scraping parts at : {url}')
+        # print(f'Scraping parts')
         response = requests.get(url)
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, 'html.parser')
@@ -71,7 +80,7 @@ class ErssatzteileScraper:
                 item_number = row.select_one('td[data-label=Artikelnummer]').text
                 description = row.select_one('td[data-label=Bezeichnung]').text
                 parts.append(PartModel(part_number=part_number, item_number=item_number, description=description))
-            print(f'Got parts : {len(parts)}')
+            # print(f'Got parts : {len(parts)}')
             if parts:
                 parts = self.translate_parts_description(parts=parts)
             return SectionModel(section_name=section_name, section_image=section_image, parts=parts)
@@ -79,7 +88,7 @@ class ErssatzteileScraper:
             print(f'Error at link : {url}, Status Code : {response.status_code}')
 
     def translate_parts_description(self, parts: list[PartModel]) -> list[PartModel]:
-        print(f'Translating parts : {len(parts)}')
+        # print(f'Translating parts : {len(parts)}')
         descriptions = [part.description for part in parts]
         translated_descriptions = self.translate_data(data=descriptions)
         for index, translated_description in enumerate(translated_descriptions):
