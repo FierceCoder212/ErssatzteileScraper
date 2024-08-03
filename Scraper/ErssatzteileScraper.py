@@ -22,6 +22,7 @@ class ErssatzteileScraper:
         self.scraper_name = 'Erssatzteile'
         self.sqlHelper = MSSqlHelper()
         self.images = []
+        self.current_count = 0
 
     def scrape_data(self):
         with ThreadPoolExecutor(max_workers=self.max_workers) as threads:
@@ -35,6 +36,8 @@ class ErssatzteileScraper:
 
     def scrape_url(self, scraper_data: ScraperDataModel) -> CatalogModel:
         print(f'Scraping Sections at : {scraper_data.catalog_link}')
+        print(f'Current {self.current_count} out of {len(self.scraper_data)}')
+        self.current_count += 1
         response = requests.get(scraper_data.catalog_link)
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, 'html.parser')
