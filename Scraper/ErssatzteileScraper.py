@@ -69,12 +69,14 @@ class ErssatzteileScraper:
                 description = row.select_one('td[data-label=Bezeichnung]').text
                 parts.append(PartModel(part_number=part_number, item_number=item_number, description=description))
             print(f'Got parts : {len(parts)}')
-            parts = self.translate_parts_description(parts=parts)
+            if parts:
+                parts = self.translate_parts_description(parts=parts)
             return SectionModel(section_name=section_name, section_image=section_image, parts=parts)
         else:
             print(f'Error at link : {url}, Status Code : {response.status_code}')
 
     def translate_parts_description(self, parts: list[PartModel]) -> list[PartModel]:
+        print(f'Translating parts : {len(parts)}')
         descriptions = [part.description for part in parts]
         translated_descriptions = self.translate_data(data=descriptions)
         for index, translated_description in enumerate(translated_descriptions):
@@ -110,7 +112,10 @@ class ErssatzteileScraper:
         body = [[data, "de", "en"], "te_lib"]
         response = requests.post(url, headers=headers, json=body)
         if response.status_code == 200:
-            return json.loads(response.text)[0]
+            try:
+                return json.loads(response.text)[0]
+            except Exception as ex:
+                print(f'Error at google translate : {ex}\n{response.text}')
         else:
             print(f'Error at translation, Status code : {response.status_code}')
         return data
