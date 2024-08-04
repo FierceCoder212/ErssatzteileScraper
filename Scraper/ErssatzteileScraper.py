@@ -18,7 +18,7 @@ from Models.SectionModel import SectionModel
 class ErssatzteileScraper:
     def __init__(self, data_file_path: str, prev_sgl_path: str):
         self.prev_data = self.get_json(prev_sgl_path)
-        self.scraper_data = self.get_scraper_data(file_path=data_file_path)[:1]
+        self.scraper_data = self.get_scraper_data(file_path=data_file_path)
         self.max_workers = 10
         self.page_size = math.ceil(len(self.scraper_data) / 10)
         self.scraper_name = 'Erssatzteile'
