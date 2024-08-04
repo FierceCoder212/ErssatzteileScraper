@@ -57,10 +57,13 @@ class ErssatzteileScraper:
         for index, data in enumerate(curr_data):
             print(f'Thread-{thread_index + 1} : {index} of {len(curr_data)}')
             self.current_count += 1
-            if catalog := self.scrape_url(scraper_data=data):
-                records = self._create_records(catalog=catalog)
-                print(f'Sending records to SQL: {len(records)}')
-                self.sqlHelper.insert_many_records(records=records)
+            try:
+                if catalog := self.scrape_url(scraper_data=data):
+                    records = self._create_records(catalog=catalog)
+                    print(f'Sending records to SQL: {len(records)}')
+                    self.sqlHelper.insert_many_records(records=records)
+            except Exception as ex:
+                print(f'Error at catalog : {data.catalog_link}, Error : {ex}')
 
     def scrape_url(self, scraper_data: ScraperDataModel) -> CatalogModel:
         while True:
