@@ -9,4 +9,5 @@ class ApiRequestModel(BaseModel):
     description: str
     itemNumber: str
     sectonDiagram: str
+    sectonDiagramUrl: str
     scraperName: str

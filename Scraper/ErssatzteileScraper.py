@@ -10,7 +10,6 @@ from bs4 import BeautifulSoup
 from Helpers.MSSqlHelper import MSSqlHelper
 from Models.ApiRequestModel import ApiRequestModel
 from Models.CatalogModel import CatalogModel
-from Models.ImageModel import ImageModel
 from Models.PartModel import PartModel
 from Models.ScraperDataModel import ScraperDataModel
 from Models.SectionModel import SectionModel
@@ -19,12 +18,11 @@ from Models.SectionModel import SectionModel
 class ErssatzteileScraper:
     def __init__(self, data_file_path: str, prev_sgl_path: str):
         self.prev_data = self.get_json(prev_sgl_path)
-        self.scraper_data = self.get_scraper_data(file_path=data_file_path)
+        self.scraper_data = self.get_scraper_data(file_path=data_file_path)[:1]
         self.max_workers = 10
         self.page_size = math.ceil(len(self.scraper_data) / 10)
         self.scraper_name = 'Erssatzteile'
         self.sqlHelper = MSSqlHelper()
-        self.images = []
         self.current_count = 0
         self.headers = {
             "accept": "*/*",
@@ -47,8 +45,6 @@ class ErssatzteileScraper:
         with ThreadPoolExecutor(max_workers=self.max_workers) as threads:
             futures = [threads.submit(self.scrape_urls, i) for i in range(self.max_workers)]
         [future.result() for future in as_completed(futures)]
-        print('Saving images')
-        self._save_json(self.images, 'images.json')
 
     def scrape_urls(self, thread_index: int):
         start_index = thread_index * self.page_size
@@ -82,7 +78,7 @@ class ErssatzteileScraper:
             else:
                 print(f'Error at base url : {scraper_data.catalog_link}, Status Code : {response.status_code}')
 
-    def scrape_parts(self, url: str) -> SectionModel:
+    def scrape_parts(self, url: str) -> SectionModel | None:
         while True:
             response = requests.get(url, headers=self.headers)
             if response.status_code == 200:
@@ -91,6 +87,8 @@ class ErssatzteileScraper:
                 section_image = ''
                 if img := soup.select_one('img.thumbnail'):
                     section_image = urljoin(url, img.get('src'))
+                if not soup.select_one('li.active'):
+                    return None
                 section_name = soup.select_one('li.active').text
                 parts = []
                 for row in parts_rows:
@@ -147,10 +145,6 @@ class ErssatzteileScraper:
         records = []
         for section in catalog.sections:
             image_filename = self._sanitize_filename(f'{catalog.sgl_code}-{section.section_name}.jpg')
-            self.images.append(ImageModel(
-                file_name=image_filename,
-                image_url=section.section_image,
-            ).model_dump())
             for part in section.parts:
                 records.append(ApiRequestModel(
                     id=0,
@@ -160,6 +154,7 @@ class ErssatzteileScraper:
                     description=part.description,
                     itemNumber=part.item_number,
                     sectonDiagram=image_filename,
+                    sectonDiagramUrl=section.section_image,
                     scraperName=self.scraper_name).model_dump())
         return records
 
