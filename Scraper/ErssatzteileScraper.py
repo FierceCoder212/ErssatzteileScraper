@@ -50,12 +50,12 @@ class ErssatzteileScraper:
         print('Saving images')
         self._save_json(self.images, 'images.json')
 
-    def scrape_urls(self, index):
-        start_index = index * self.page_size
-        end_index = (index + 1) * self.page_size
+    def scrape_urls(self, thread_index: int):
+        start_index = thread_index * self.page_size
+        end_index = (thread_index + 1) * self.page_size
         curr_data = self.scraper_data[start_index:end_index]
         for index, data in enumerate(curr_data):
-            print(f'Thread-{index + 1} : {index} of {len(curr_data)}')
+            print(f'Thread-{thread_index + 1} : {index} of {len(curr_data)}')
             self.current_count += 1
             if catalog := self.scrape_url(scraper_data=data):
                 records = self._create_records(catalog=catalog)
